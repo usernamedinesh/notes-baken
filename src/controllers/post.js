@@ -25,8 +25,7 @@ exports.getAllPost = async (req, res) => {
 exports.createPost = async (req, res) => {
   try {
     const { title } = req.body;
-    console.log("hello");
-    // Handle thumbnail
+
     const thumbnail =
       Array.isArray(req.files?.thumbnail) && req.files.thumbnail.length > 0
         ? req.files.thumbnail[0].path
@@ -54,7 +53,6 @@ exports.createPost = async (req, res) => {
       images,
     });
     await newPost.save();
-
     res.status(201).json({
       success: true,
       message: "Post created successfully.",
@@ -96,28 +94,40 @@ exports.updatePost = async (req, res) => {
       return res.status(404).json({ error: "Post not found." });
     }
 
-    // Update thumbnail if provided
+    // Update thumbnail if provided (assuming multer uploads it directly to Cloudinary)
     if (req.files?.thumbnail && req.files.thumbnail.length > 0) {
-      // Optional: delete old thumbnail from Cloudinary (if stored there)
       post.thumbnail = req.files.thumbnail[0].path;
     }
 
-    // Add new images if provided
+    // Helper to upload buffer to Cloudinary
+    const uploadImage = (buffer) =>
+      new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "posts" },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          },
+        );
+        stream.end(buffer);
+      });
+
+    // Add new images if provided (upload buffers in parallel)
     if (req.files?.images && req.files.images.length > 0) {
-      const newImages = req.files.images.map((file) => ({
-        url: file.path,
-        caption: req.body.captions || "", // Optional: support caption upload later
+      const uploadPromises = req.files.images.map((file) =>
+        uploadImage(file.buffer),
+      );
+      const results = await Promise.all(uploadPromises);
+
+      const newImages = results.map((result) => ({
+        url: result.secure_url,
+        caption: req.body.captions || "",
       }));
 
-      // Option 1: Append to existing images
       post.images.push(...newImages);
-
-      // Option 2 (Alternative): Replace all images
-      // post.images = newImages;
     }
 
     await post.save();
-
     res.status(200).json({
       success: true,
       message: "Post updated successfully.",
@@ -129,10 +139,24 @@ exports.updatePost = async (req, res) => {
   }
 };
 
-exports.deletePost = async () => {
+exports.deletePost = async (req, res) => {
   try {
-    await Post.findByIdAndDelete(req.params.id);
-    res.json({ message: "post deleted successfully" });
+    const postId = req.params.postId;
+    // 1. Find the post first
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    // 2. Delete from Cloudinary (if image exists)
+    if (post.cloudinaryId) {
+      await cloudinary.uploader.destroy(post.cloudinaryId);
+    }
+
+    // 3. Delete from MongoDB
+    await Post.findByIdAndDelete(postId);
+
+    res.json({ success: true, message: "Post deleted successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

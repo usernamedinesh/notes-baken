@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 const postRouter = require("./src/router/post.router");
+const authRoute = require("./src/router/auth.router");
 const cors = require("cors");
 
 app.use(express.json());
@@ -14,5 +15,6 @@ app.get("/health", (_, res) => {
 });
 
 app.use("/api/post", postRouter);
+app.use("/api/user", authRoute);
 
 module.exports = app;

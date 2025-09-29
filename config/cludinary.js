@@ -1,5 +1,7 @@
+// config/cloudinary.js
 const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const multer = require("multer");
 
 cloudinary.config({
   cloud_name: process.env.C_NAME,
@@ -11,13 +13,18 @@ const storage = new CloudinaryStorage({
   cloudinary,
   params: ({ file }) => {
     const timestamp = Date.now();
-    const originalName = file?.originalname || `file-${timestamp}`;
+    const originalName = `file-${timestamp}`;
+    const cleanName = originalName
+      .replace(/\s+/g, "_")
+      .replace(/[^\w\-\.]/g, "");
     return {
       folder: "posts",
       allowed_formats: ["jpg", "png", "jpeg", "webp"],
-      public_id: `${timestamp}-${originalName}`,
+      public_id: `${timestamp}-${cleanName}`,
     };
   },
 });
 
-module.exports = { cloudinary, storage };
+const upload = multer({ storage });
+
+module.exports = { upload, cloudinary };
