@@ -26,11 +26,21 @@ exports.createPost = async (req, res) => {
   try {
     const { title } = req.body;
 
-    const thumbnail =
-      Array.isArray(req.files?.thumbnail) && req.files.thumbnail.length > 0
-        ? req.files.thumbnail[0].path
-        : null;
+    console.log("req.body:", req.body);
+    console.log("req.files:", req.files);
+    const thumbnailFile = req.files?.thumbnail?.[0];
+    const thumbnail = thumbnailFile?.path || null;
 
+    console.log("thumbnail", thumbnail);
+    console.log("title", title);
+    if (!title) {
+      return res.status(400).json({ error: "Fields 'title' are required." });
+    }
+    if (!thumbnail) {
+      return res
+        .status(400)
+        .json({ error: "Fields 'thumbnail' are required." });
+    }
     // Handle images
     let images = [];
     if (Array.isArray(req.files?.images)) {
@@ -39,13 +49,10 @@ exports.createPost = async (req, res) => {
       }));
     }
 
+    console.log("heloo2");
     // Validation
-    if (!title || !thumbnail) {
-      return res
-        .status(400)
-        .json({ error: "Fields 'title' and 'thumbnail' are required." });
-    }
 
+    console.log("heloo3");
     // Create post
     const newPost = new Post({
       title,
